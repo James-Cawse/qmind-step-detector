@@ -1,0 +1,49 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Step Detector</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+body{margin:0;font-family:-apple-system,Helvetica,sans-serif;background:#0d1117;color:#e6edf3}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 24px;border-bottom:1px solid #30363d}
+h1{font-size:20px;margin:0}h1 span{color:#58a6ff}
+button{background:#238636;color:#fff;border:0;border-radius:6px;padding:8px 16px;font-size:14px;cursor:pointer}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;padding:16px 24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8b949e;margin:0 0 8px}
+.big{font-size:96px;font-weight:700;text-align:center;line-height:1.1;padding:28px 0 6px}
+.label{font-size:44px;font-weight:700;text-align:center;padding:40px 0 8px}
+.wide{grid-column:span 2}.sub{color:#8b949e;text-align:center;font-size:15px}
+.WALKING{color:#3fb950}.RUNNING{color:#f0883e}.STILL{color:#8b949e}
+</style></head><body>
+<header><h1>Step Detector <span>· orientation-aware motion sensing · Vehicle Telematics Modelling × Geotab</span></h1>
+<button onclick="fetch('/reset',{method:'POST'})">Reset count</button></header>
+<div class="grid">
+ <div class="card"><h2>Steps</h2><div class="big" id="steps">0</div><div class="sub" id="spm">&nbsp;</div></div>
+ <div class="card"><h2>Activity</h2><div class="label" id="state">—</div><div class="sub" id="cad">&nbsp;</div></div>
+ <div class="card"><h2>Orientation · which way is down</h2><div id="orient" style="height:250px"></div><div class="sub" id="tilt">waiting for phone…</div></div>
+ <div class="card wide"><h2>Frequency domain · FFT of vertical acceleration (last 2 s)</h2><div id="spec" style="height:260px"></div></div>
+ <div class="card"><h2>Vertical acceleration · after removing orientation</h2><div id="trace" style="height:260px"></div></div>
+</div>
+<script>
+const dark={paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:'#e6edf3'},margin:{l:45,r:10,t:10,b:35}};
+const cfg={displayModeBar:false};
+async function tick(){
+ try{const s=await (await fetch('/state')).json();
+ if(s.ready){
+  document.getElementById('steps').textContent=s.steps;
+  const st=document.getElementById('state');st.textContent=s.state;st.className='label '+s.state;
+  document.getElementById('spm').textContent=s.state=='STILL'?'':`${s.spm} steps / min`;
+  document.getElementById('cad').textContent=s.state=='STILL'?'':`cadence ${s.cadence.toFixed(2)} Hz`;
+  document.getElementById('tilt').textContent=`phone tilted ${s.tilt.toFixed(0)}° from flat`;
+  const d=s.down;
+  Plotly.react('orient',[{type:'scatter3d',mode:'lines',x:[0,d[0]],y:[0,d[1]],z:[0,d[2]],line:{width:12,color:'#58a6ff'},name:'down'}],
+   {...dark,margin:{l:0,r:0,t:0,b:0},showlegend:false,scene:{xaxis:{range:[-1,1],title:'x'},yaxis:{range:[-1,1],title:'y'},zaxis:{range:[-1,1],title:'z'},aspectmode:'cube'}},cfg);
+  Plotly.react('spec',[{x:s.freqs,y:s.amp,type:'scatter',fill:'tozeroy',line:{color:'#58a6ff',width:2}}],
+   {...dark,xaxis:{title:'Hz',range:[0,8]},yaxis:{title:'amplitude'},
+    shapes:[{type:'rect',x0:1.2,x1:2.3,y0:0,y1:1,yref:'paper',fillcolor:'#3fb950',opacity:.08,line:{width:0}},
+            {type:'rect',x0:2.3,x1:3.5,y0:0,y1:1,yref:'paper',fillcolor:'#f0883e',opacity:.08,line:{width:0}},
+            {type:'line',x0:s.cadence,x1:s.cadence,y0:0,y1:1,yref:'paper',line:{color:'#e6edf3',dash:'dot'}}],
+    annotations:[{x:1.75,y:1,yref:'paper',text:'walk',showarrow:false,font:{color:'#3fb950'}},{x:2.9,y:1,yref:'paper',text:'run',showarrow:false,font:{color:'#f0883e'}}]},cfg);
+  Plotly.react('trace',[{y:s.vertical,type:'scatter',line:{color:'#d2a8ff',width:1.5}}],{...dark,xaxis:{showticklabels:false},yaxis:{title:'m/s²'}},cfg);
+ }}catch(e){}
+ setTimeout(tick,200)}
+tick();
+</script></body></html>
